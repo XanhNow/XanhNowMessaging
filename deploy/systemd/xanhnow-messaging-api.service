@@ -1,0 +1,26 @@
+[Unit]
+Description=XanhNow Messaging API
+After=network-online.target xanhnow-messaging-vault-agent.service
+Wants=network-online.target
+Requires=xanhnow-messaging-vault-agent.service
+
+[Service]
+Type=simple
+User=xanhnow
+Group=xanhnow
+WorkingDirectory=/srv/xanhnow/apps/messaging/current/api
+ExecStart=/usr/bin/dotnet /srv/xanhnow/apps/messaging/current/api/XanhNow.Messaging.Api.dll
+Restart=always
+RestartSec=5
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=DOTNET_ENVIRONMENT=Production
+Environment=ASPNETCORE_URLS=http://127.0.0.1:5052
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadOnlyPaths=/srv/xanhnow/s101/secrets/messaging
+
+[Install]
+WantedBy=multi-user.target
+

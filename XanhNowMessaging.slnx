@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/XanhNow.Messaging.Api/XanhNow.Messaging.Api.csproj" />
+    <Project Path="src/XanhNow.Messaging.Application/XanhNow.Messaging.Application.csproj" />
+    <Project Path="src/XanhNow.Messaging.Contracts/XanhNow.Messaging.Contracts.csproj" />
+    <Project Path="src/XanhNow.Messaging.Domain/XanhNow.Messaging.Domain.csproj" />
+    <Project Path="src/XanhNow.Messaging.Infrastructure/XanhNow.Messaging.Infrastructure.csproj" />
+    <Project Path="src/XanhNow.Messaging.Migrator/XanhNow.Messaging.Migrator.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/XanhNow.Messaging.Tests/XanhNow.Messaging.Tests.csproj" />
+  </Folder>
+</Solution>
+

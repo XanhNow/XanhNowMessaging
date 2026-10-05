@@ -1,0 +1,20 @@
+[Unit]
+Description=XanhNow Messaging Vault Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=xanhnow
+Group=xanhnow
+ExecStart=/usr/bin/vault agent -config=/etc/xanhnow/s101/messaging/vault-agent.hcl
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/srv/xanhnow/s101/secrets/messaging
+
+[Install]
+WantedBy=multi-user.target

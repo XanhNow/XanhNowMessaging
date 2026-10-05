@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\XanhNow.Messaging.Contracts\XanhNow.Messaging.Contracts.csproj" />
+  </ItemGroup>
+</Project>
+
