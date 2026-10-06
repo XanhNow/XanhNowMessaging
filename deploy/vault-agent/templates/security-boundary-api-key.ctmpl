@@ -1,0 +1,1 @@
+{{ with secret "kv/data/xanhnow/security/child-apps/messaging-boundary" }}{{ .Data.data.api_key }}{{ end }}

@@ -33,7 +33,7 @@ command -v python3 >/dev/null 2>&1 || fail "python3_missing"
 
 required_files=(
     /srv/xanhnow/s101/secrets/messaging/postgres-connection-string
-    /srv/xanhnow/s101/secrets/messaging/security-jwt-signing-key
+    /srv/xanhnow/s101/secrets/messaging/security-boundary-api-key
     /srv/xanhnow/s101/secrets/messaging/redis-configuration
     /srv/xanhnow/s101/secrets/messaging/redis-password
     /srv/xanhnow/s101/secrets/messaging/kafka-password
@@ -123,4 +123,3 @@ echo "health_ready_pass=true"
 echo "bind_loopback_only=true"
 echo "secret_printed=false"
 echo "XANHNOW_MESSAGING_DEPLOY_PASS"
-

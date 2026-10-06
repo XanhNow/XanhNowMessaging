@@ -385,7 +385,7 @@ public sealed class ScheduledMessageWorker(
                     : $"Vui lòng chuẩn bị thực hiện lịch xe có giờ đón {pickupAt}."),
             "TRIP_COMPLETION_REMINDER" => (
                 "Nhắc hoàn thành lịch xe",
-                "Sau khi đưa khách đến nơi an toàn, vui lòng mở lịch xe và xác nhận Hoàn thành."),
+                "Nếu lịch xe đã kết thúc an toàn, người tạo và người nhận vui lòng mở lịch xe để xác nhận Hoàn thành."),
             _ => throw new InvalidOperationException($"Unsupported scheduled template '{templateCode}'.")
         };
     }

@@ -91,6 +91,15 @@ public sealed class MessagingEventProcessor(
             case "SystemNotificationRequested":
                 HandleSystemNotification(envelope, now);
                 return "Processed";
+            case "ComplaintPenaltyDecisionAccepted":
+                HandleComplaintPenaltyDecisionAccepted(envelope, now);
+                return "Processed";
+            case "ComplaintPenaltyApplied":
+                HandleComplaintPenaltyApplied(envelope, now);
+                return "Processed";
+            case "ComplaintPenaltyDebtCreated":
+                HandleComplaintPenaltyDebtCreated(envelope, now);
+                return "Processed";
             default:
                 logger.LogInformation(
                     "Ignoring unsupported messaging event type {EventType} with event id {EventId}.",
@@ -116,25 +125,31 @@ public sealed class MessagingEventProcessor(
             now);
 
         var pickupAt = ReadRequiredDateTime(envelope.Payload, "pickupAtUtc");
-        var driverUserId = ReadGuid(envelope.Payload, "driverUserId") ?? envelope.Recipients.FirstOrDefault();
-        if (driverUserId == Guid.Empty)
+        _ = ReadRequiredDateTime(envelope.Payload, "acceptedAtUtc");
+        var driverUserId = ReadGuid(envelope.Payload, "driverUserId");
+        if (!driverUserId.HasValue || driverUserId.Value == Guid.Empty)
         {
-            throw new InvalidOperationException("TripAccepted requires driverUserId or at least one recipient.");
+            throw new InvalidOperationException("TripAccepted requires driverUserId.");
         }
 
         await CancelSchedulesAsync(envelope.EntityType, envelope.EntityId, now, cancellationToken);
         AddSchedule(
             envelope,
-            driverUserId,
+            driverUserId.Value,
             "TRIP_PICKUP_REMINDER",
-            pickupAt - schedulerOptions.Value.PickupReminderLeadTime,
+            GetPickupReminderAt(pickupAt),
             now);
-        AddSchedule(
-            envelope,
-            driverUserId,
-            "TRIP_COMPLETION_REMINDER",
-            pickupAt + schedulerOptions.Value.CompletionReminderDelay,
-            now);
+        foreach (var recipientId in envelope.Recipients.Where(x => x != Guid.Empty).Distinct())
+        {
+            AddSchedule(
+                envelope,
+                recipientId,
+                "TRIP_COMPLETION_REMINDER",
+                GetCompletionReminderAt(
+                    pickupAt,
+                    schedulerOptions.Value.CompletionReminderDelay),
+                now);
+        }
     }
 
     private async Task HandleTripUpdatedAsync(
@@ -159,8 +174,8 @@ public sealed class MessagingEventProcessor(
             return;
         }
 
-        var driverUserId = ReadGuid(envelope.Payload, "driverUserId") ?? envelope.Recipients.FirstOrDefault();
-        if (driverUserId == Guid.Empty)
+        var driverUserId = ReadGuid(envelope.Payload, "driverUserId");
+        if (!driverUserId.HasValue || driverUserId.Value == Guid.Empty)
         {
             return;
         }
@@ -168,16 +183,21 @@ public sealed class MessagingEventProcessor(
         await CancelSchedulesAsync(envelope.EntityType, envelope.EntityId, now, cancellationToken);
         AddSchedule(
             envelope,
-            driverUserId,
+            driverUserId.Value,
             "TRIP_PICKUP_REMINDER",
-            pickupAt - schedulerOptions.Value.PickupReminderLeadTime,
+            GetPickupReminderAt(pickupAt),
             now);
-        AddSchedule(
-            envelope,
-            driverUserId,
-            "TRIP_COMPLETION_REMINDER",
-            pickupAt + schedulerOptions.Value.CompletionReminderDelay,
-            now);
+        foreach (var recipientId in envelope.Recipients.Where(x => x != Guid.Empty).Distinct())
+        {
+            AddSchedule(
+                envelope,
+                recipientId,
+                "TRIP_COMPLETION_REMINDER",
+                GetCompletionReminderAt(
+                    pickupAt,
+                    schedulerOptions.Value.CompletionReminderDelay),
+                now);
+        }
     }
 
     private void HandleSystemNotification(MessagingEventEnvelope envelope, DateTimeOffset now)
@@ -188,6 +208,59 @@ public sealed class MessagingEventProcessor(
         var category = ReadOptionalString(envelope.Payload, "category", 80) ?? "system";
         var actionType = ReadOptionalString(envelope.Payload, "actionType", 80);
         AddMessage(envelope, category, templateCode, title, content, actionType, envelope.Recipients, now);
+    }
+
+    private void HandleComplaintPenaltyDecisionAccepted(
+        MessagingEventEnvelope envelope,
+        DateTimeOffset now)
+    {
+        var penaltyPoints = ReadRequiredDecimal(envelope.Payload, "penaltyPoints");
+        AddMessage(
+            envelope,
+            "membership",
+            "COMPLAINT_PENALTY_DECISION_ACCEPTED",
+            "Biên bản phạt đã được chấp nhận",
+            $"Biên bản khiếu nại đã được kết luận với mức phạt {penaltyPoints:0.#####} điểm.",
+            "OpenComplaint",
+            envelope.Recipients,
+            now);
+    }
+
+    private void HandleComplaintPenaltyApplied(
+        MessagingEventEnvelope envelope,
+        DateTimeOffset now)
+    {
+        var deductedPoints = ReadRequiredDecimal(envelope.Payload, "deductedPoints");
+        var remainingPoints = ReadRequiredDecimal(envelope.Payload, "remainingPoints");
+        var outstandingPoints = ReadRequiredDecimal(envelope.Payload, "outstandingPoints");
+        var content = outstandingPoints == 0
+            ? $"Đã trừ {deductedPoints:0.#####} điểm. Số điểm còn lại: {remainingPoints:0.#####}."
+            : $"Đã trừ {deductedPoints:0.#####} điểm. Số điểm còn lại: {remainingPoints:0.#####}; còn nợ {outstandingPoints:0.#####} điểm.";
+        AddMessage(
+            envelope,
+            "membership",
+            "COMPLAINT_PENALTY_APPLIED",
+            "Đã xử lý điểm phạt",
+            content,
+            "OpenComplaint",
+            envelope.Recipients,
+            now);
+    }
+
+    private void HandleComplaintPenaltyDebtCreated(
+        MessagingEventEnvelope envelope,
+        DateTimeOffset now)
+    {
+        var outstandingPoints = ReadRequiredDecimal(envelope.Payload, "outstandingPoints");
+        AddMessage(
+            envelope,
+            "membership",
+            "COMPLAINT_PENALTY_DEBT_CREATED",
+            "Bạn còn nợ điểm phạt",
+            $"Bạn còn nợ {outstandingPoints:0.#####} điểm phạt và chưa được nhận Lịch Xe mới cho đến khi trả hết nợ điểm.",
+            "OpenComplaint",
+            envelope.Recipients,
+            now);
     }
 
     private void AddMessage(
@@ -257,7 +330,7 @@ public sealed class MessagingEventProcessor(
             Id = Guid.NewGuid(),
             UserId = userId,
             TemplateCode = templateCode,
-            BusinessKey = $"{envelope.BusinessKey}:{templateCode.ToLowerInvariant()}",
+            BusinessKey = $"{envelope.BusinessKey}:{templateCode.ToLowerInvariant()}:{userId:N}",
             Category = "trip",
             SourceApp = envelope.SourceApp,
             SourceEvent = envelope.EventType,
@@ -362,6 +435,11 @@ public sealed class MessagingEventProcessor(
             : throw new InvalidOperationException($"Payload property '{propertyName}' is not a valid timestamp.");
     }
 
+    private static decimal ReadRequiredDecimal(JsonElement payload, string propertyName) =>
+        payload.TryGetProperty(propertyName, out var value) && value.TryGetDecimal(out var parsed)
+            ? parsed
+            : throw new InvalidOperationException($"Payload property '{propertyName}' is not a valid decimal.");
+
     private static Guid? ReadGuid(JsonElement payload, string propertyName)
     {
         return payload.TryGetProperty(propertyName, out var value) &&
@@ -388,5 +466,10 @@ public sealed class MessagingEventProcessor(
         }
         return text.Length <= maxLength ? text : text[..maxLength];
     }
-}
 
+    internal static DateTimeOffset GetPickupReminderAt(DateTimeOffset pickupAt) => pickupAt;
+
+    internal static DateTimeOffset GetCompletionReminderAt(
+        DateTimeOffset pickupAt,
+        TimeSpan completionReminderDelay) => pickupAt + completionReminderDelay;
+}

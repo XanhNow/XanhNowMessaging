@@ -30,8 +30,8 @@ template {
 }
 
 template {
-  source = "/etc/xanhnow/s101/messaging/templates/security-jwt-signing-key.ctmpl"
-  destination = "/srv/xanhnow/s101/secrets/messaging/security-jwt-signing-key"
+  source = "/etc/xanhnow/s101/messaging/templates/security-boundary-api-key.ctmpl"
+  destination = "/srv/xanhnow/s101/secrets/messaging/security-boundary-api-key"
   perms = "0600"
 }
 
@@ -58,4 +58,3 @@ template {
   destination = "/srv/xanhnow/s101/secrets/messaging/device-token-encryption-key"
   perms = "0600"
 }
-

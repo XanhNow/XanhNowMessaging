@@ -22,11 +22,17 @@ public sealed class MessagingTests
         Assert.Equal(expected, actual);
     }
 
-    [Fact]
-    public void Security_session_requires_active_status()
+    [Theory]
+    [InlineData("0901234567", "+84901234567")]
+    [InlineData("84901234567", "+84901234567")]
+    public void Security_boundary_normalizes_trusted_phone(
+        string input,
+        string expected)
     {
-        Assert.True(SecuritySessionValidator.IsActivePayload("{\"status\":\"Active\"}"));
-        Assert.False(SecuritySessionValidator.IsActivePayload("{\"status\":\"Revoked\"}"));
+        Assert.True(
+            MessagingSecurityBoundaryAuthenticationHandler.TryNormalizePhone(
+                input, out var actual));
+        Assert.Equal(expected, actual);
     }
 
     [Theory]
@@ -38,6 +44,25 @@ public sealed class MessagingTests
         var rendered = ScheduledMessageWorker.Render(template, payload);
         Assert.Equal(expectedTitle, rendered.Title);
         Assert.False(string.IsNullOrWhiteSpace(rendered.Content));
+    }
+
+    [Fact]
+    public void Scheduler_uses_two_hours_as_default_completion_reminder_delay()
+    {
+        var options = new SchedulerOptions();
+
+        Assert.Equal(TimeSpan.FromHours(2), options.CompletionReminderDelay);
+    }
+
+    [Fact]
+    public void Trip_reminders_use_pickup_and_pickup_plus_configured_delay()
+    {
+        var pickupAt = new DateTimeOffset(2026, 10, 6, 10, 0, 0, TimeSpan.Zero);
+
+        Assert.Equal(pickupAt, MessagingEventProcessor.GetPickupReminderAt(pickupAt));
+        Assert.Equal(
+            pickupAt.AddHours(2),
+            MessagingEventProcessor.GetCompletionReminderAt(pickupAt, TimeSpan.FromHours(2)));
     }
 
     [Fact]
@@ -58,7 +83,10 @@ public sealed class MessagingTests
         try
         {
             File.WriteAllText(path, Convert.ToBase64String(Enumerable.Range(1, 32).Select(x => (byte)x).ToArray()));
-            var options = Options.Create(new SecurityOptions { DeviceTokenEncryptionKeyFile = path });
+            var options = Options.Create(new MessagingSecurityOptions
+            {
+                DeviceTokenEncryptionKeyFile = path
+            });
             var protector = new AesDeviceTokenProtector(options);
             const string token = "device-token-that-must-not-be-stored-in-plaintext";
 

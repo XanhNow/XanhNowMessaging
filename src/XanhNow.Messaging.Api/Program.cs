@@ -14,7 +14,7 @@ builder.Services.Configure<KafkaOptions>(builder.Configuration.GetSection(KafkaO
 builder.Services.Configure<SchedulerOptions>(builder.Configuration.GetSection(SchedulerOptions.SectionName));
 builder.Services.Configure<DeliveryOptions>(builder.Configuration.GetSection(DeliveryOptions.SectionName));
 builder.Services.Configure<RealtimeOptions>(builder.Configuration.GetSection(RealtimeOptions.SectionName));
-builder.Services.AddXanhNowSecurity(builder.Configuration);
+builder.Services.AddMessagingSecurityBoundaryAuthentication(builder.Configuration);
 builder.Services.AddSingleton(TimeProvider.System);
 
 var database = builder.Configuration.GetSection(DatabaseOptions.SectionName).Get<DatabaseOptions>()
@@ -58,6 +58,7 @@ builder.Services.AddHostedService<OutboxDeliveryWorker>();
 
 var app = builder.Build();
 app.UseAuthentication();
+app.UseMiddleware<MessagingSecurityBoundaryRequiredMiddleware>();
 app.UseAuthorization();
 
 var messages = app.MapGroup("/api/v1/messaging/messages").RequireAuthorization();

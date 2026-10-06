@@ -40,7 +40,7 @@ systemctl restart "$service_name"
 
 for _ in {1..30}; do
     if sudo -u "$app_user" test -s "$secret_root/postgres-connection-string" &&
-       sudo -u "$app_user" test -s "$secret_root/security-jwt-signing-key" &&
+       sudo -u "$app_user" test -s "$secret_root/security-boundary-api-key" &&
        sudo -u "$app_user" test -s "$secret_root/redis-configuration" &&
        sudo -u "$app_user" test -s "$secret_root/redis-password" &&
        sudo -u "$app_user" test -s "$secret_root/kafka-password" &&

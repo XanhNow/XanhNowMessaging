@@ -5,9 +5,7 @@
     <ProjectReference Include="..\XanhNow.Messaging.Infrastructure\XanhNow.Messaging.Infrastructure.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.12" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="10.0.12" />
     <PackageReference Include="StackExchange.Redis" Version="3.0.11" />
   </ItemGroup>
 </Project>
-

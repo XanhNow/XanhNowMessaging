@@ -7,7 +7,7 @@
 - Consumes authoritative domain events from Kafka.
 - Stores messages, recipients, read state, schedules, Inbox, Outbox, delivery attempts, devices, and entity event positions in PostgreSQL database `authtest`, schema `s101_xanhnow_messaging`.
 - Uses the shared XanhNow Kafka and Redis credentials. Logical names remain isolated through the `s101` namespace.
-- Uses the Security JWT and Redis session contract. User identity always comes from the validated token.
+- Accepts user HTTP and SignalR traffic only from `XanhNow_Security_App` through the dedicated Messaging boundary. Messaging does not hold the Security JWT signing key or read Security sessions.
 - Publishes committed messages to Flutter through SignalR at `/messagingHub`.
 - Does not query or mutate another app's database.
 
@@ -22,7 +22,7 @@
 
 ## Implemented event contracts
 
-- `TripAccepted`: immediate notification plus pickup and completion reminders.
+- `TripAccepted`: immediate acceptance notification, a reminder at pickup time, and a completion reminder two hours after pickup while the trip remains incomplete.
 - `TripUpdated`: notification and reminder reschedule when `pickupAtUtc` is present.
 - `TripCompleted`: completion notification and cancellation of outstanding reminders.
 - `TripCancelled`: cancellation notification and cancellation of outstanding reminders.
@@ -53,4 +53,3 @@ dotnet test .\XanhNowMessaging.slnx --configuration Release --no-build --no-rest
 ## External prerequisite not faked
 
 FCM/APNs credentials and provider infrastructure do not currently exist in the supplied XanhNow environment. Device registration, encrypted token storage, and the push gateway interface are implemented, but the production push adapter remains disabled until real provider credentials and policies are supplied. SignalR, durable history, scheduling, and retry do not depend on that adapter.
-

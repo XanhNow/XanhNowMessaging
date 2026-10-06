@@ -14,7 +14,7 @@ public sealed class KafkaOptions
     public string[] BootstrapServers { get; set; } = [];
     public string ClientId { get; set; } = "s101-xanhnow-messaging";
     public string ConsumerGroup { get; set; } = "s101.xanhnow.messaging";
-    public string[] Topics { get; set; } = ["s101.xanhnow.trip.events"];
+    public string[] Topics { get; set; } = ["s101.xanhnow.trip.events", "s101.xanhnow.membership.events"];
     public string DeadLetterTopic { get; set; } = "s101.xanhnow.messaging.dlq";
     public string SecurityProtocol { get; set; } = "SASL_SSL";
     public string SaslMechanism { get; set; } = "SCRAM-SHA-512";
@@ -29,7 +29,6 @@ public sealed class SchedulerOptions
     public const string SectionName = "Scheduler";
     public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(2);
     public TimeSpan LeaseDuration { get; set; } = TimeSpan.FromSeconds(30);
-    public TimeSpan PickupReminderLeadTime { get; set; } = TimeSpan.FromMinutes(30);
     public TimeSpan CompletionReminderDelay { get; set; } = TimeSpan.FromHours(2);
     public int BatchSize { get; set; } = 50;
     public int MaxAttempts { get; set; } = 10;
