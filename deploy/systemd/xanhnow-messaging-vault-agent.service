@@ -7,7 +7,7 @@ Wants=network-online.target
 Type=simple
 User=xanhnow
 Group=xanhnow
-ExecStart=/usr/bin/vault agent -config=/etc/xanhnow/s101/messaging/vault-agent.hcl
+ExecStart=/usr/local/bin/vault agent -config=/etc/xanhnow/s101/messaging/vault-agent.hcl
 Restart=always
 RestartSec=5
 NoNewPrivileges=true
