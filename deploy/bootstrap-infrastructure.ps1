@@ -132,7 +132,7 @@ ALTER DEFAULT PRIVILEGES FOR ROLE $migratorUser IN SCHEMA $schema
     $env:VAULT_ADDR = $VaultAddress
     $env:VAULT_CACERT = $VaultCaCert
     $linuxPostgresRootCert = "/etc/xanhnow/s101/postgresql/trust/postgresql-root-ca.crt"
-    $runtimeConnection = "Host=$PostgresHost;Port=$RuntimePort;Database=$Database;Username=$runtimeUser;Password=$runtimePasswordValue;SSL Mode=Prefer;Search Path=$schema;Pooling=true;No Reset On Close=true;Timeout=15;Command Timeout=30"
+    $runtimeConnection = "Host=$PostgresHost;Port=$RuntimePort;Database=$Database;Username=$runtimeUser;Password=$runtimePasswordValue;SSL Mode=Prefer;Pooling=true;No Reset On Close=true;Timeout=15;Command Timeout=30"
     $migrationConnection = "Host=$PostgresHost;Port=$MigrationPort;Database=$Database;Username=$migratorUser;Password=$migratorPasswordValue;SSL Mode=VerifyFull;Root Certificate=$linuxPostgresRootCert;Search Path=$schema;Pooling=false;Timeout=15;Command Timeout=60"
 
     & $VaultPath kv put kv/xanhnow/s101/messaging/postgres/runtime "connection_string=$runtimeConnection" | Out-Null
