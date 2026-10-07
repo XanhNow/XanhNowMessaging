@@ -1,1 +1,1 @@
-{{ with secret "kv/data/xanhnow/messaging/crypto" }}{{ .Data.data.DeviceTokenEncryptionKey }}{{ end }}
+{{ with secret "kv/data/xanhnow/s101/messaging/crypto" }}{{ .Data.data.device_token_encryption_key }}{{ end }}

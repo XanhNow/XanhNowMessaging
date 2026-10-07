@@ -1,1 +1,1 @@
-{{ with secret "kv/data/xanhnow/messaging/postgres/runtime" }}{{ .Data.data.ConnectionString }}{{ end }}
+{{ with secret "kv/data/xanhnow/s101/messaging/postgres/runtime" }}{{ .Data.data.connection_string }}{{ end }}

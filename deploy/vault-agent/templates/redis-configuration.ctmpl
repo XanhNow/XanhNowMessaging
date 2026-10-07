@@ -1,1 +1,1 @@
-{{ with secret "kv/data/xanhnow/platform/redis" }}{{ .Data.data.Configuration }}{{ end }}
+{{ with secret "kv/data/xanhnow/s101/shared/redis" }}{{ .Data.data.configuration }}{{ end }}

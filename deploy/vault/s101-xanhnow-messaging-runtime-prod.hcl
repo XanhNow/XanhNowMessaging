@@ -1,16 +1,16 @@
-path "kv/data/xanhnow/messaging/postgres/runtime" {
+path "kv/data/xanhnow/s101/messaging/postgres/runtime" {
   capabilities = ["read"]
 }
 
-path "kv/data/xanhnow/messaging/crypto" {
+path "kv/data/xanhnow/s101/messaging/crypto" {
   capabilities = ["read"]
 }
 
-path "kv/data/xanhnow/platform/redis" {
+path "kv/data/xanhnow/s101/shared/redis" {
   capabilities = ["read"]
 }
 
-path "kv/data/xanhnow/platform/kafka" {
+path "kv/data/xanhnow/s101/shared/kafka" {
   capabilities = ["read"]
 }
 
