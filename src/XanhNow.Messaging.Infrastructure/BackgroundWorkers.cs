@@ -30,11 +30,12 @@ public sealed class KafkaConsumerWorker(
             return;
         }
 
+        var topics = NormalizeTopics(options.Value.Topics);
         using var consumer = new ConsumerBuilder<string, string>(BuildConfig(options.Value))
             .SetErrorHandler((_, error) => logger.LogError("Kafka error {Code}: {Reason}", error.Code, error.Reason))
             .Build();
-        consumer.Subscribe(options.Value.Topics);
-        logger.LogInformation("Kafka consumer subscribed to {Topics}.", string.Join(',', options.Value.Topics));
+        consumer.Subscribe(topics);
+        logger.LogInformation("Kafka consumer subscribed to {Topics}.", string.Join(',', topics));
 
         try
         {
@@ -92,16 +93,19 @@ public sealed class KafkaConsumerWorker(
 
     private static ConsumerConfig BuildConfig(KafkaOptions value)
     {
-        if (value.BootstrapServers.Length == 0 || value.Topics.Length == 0)
+        if (value.BootstrapServers.Length == 0 ||
+            value.BootstrapServers.Any(string.IsNullOrWhiteSpace))
         {
-            throw new InvalidOperationException("Kafka BootstrapServers and Topics are required.");
+            throw new InvalidOperationException("Kafka BootstrapServers are required.");
         }
+        _ = NormalizeTopics(value.Topics);
         return new ConsumerConfig
         {
-            BootstrapServers = string.Join(',', value.BootstrapServers),
-            ClientId = value.ClientId,
-            GroupId = value.ConsumerGroup,
+            BootstrapServers = string.Join(',', value.BootstrapServers.Select(server => server.Trim())),
+            ClientId = Required(value.ClientId, nameof(value.ClientId)),
+            GroupId = Required(value.ConsumerGroup, nameof(value.ConsumerGroup)),
             EnableAutoCommit = false,
+            EnableAutoOffsetStore = false,
             AutoOffsetReset = AutoOffsetReset.Earliest,
             SecurityProtocol = ParseSecurityProtocol(value.SecurityProtocol),
             SaslMechanism = ParseSaslMechanism(value.SaslMechanism),
@@ -111,6 +115,23 @@ public sealed class KafkaConsumerWorker(
             EnablePartitionEof = false
         };
     }
+
+    internal static string[] NormalizeTopics(IEnumerable<string?> topics)
+    {
+        var normalized = topics
+            .Where(topic => !string.IsNullOrWhiteSpace(topic))
+            .Select(topic => topic!.Trim())
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        return normalized.Length > 0
+            ? normalized
+            : throw new InvalidOperationException("Kafka Topics are required.");
+    }
+
+    private static string Required(string value, string name) =>
+        string.IsNullOrWhiteSpace(value)
+            ? throw new InvalidOperationException($"Kafka {name} is required.")
+            : value.Trim();
 
     private static SecurityProtocol ParseSecurityProtocol(string value) => value.ToUpperInvariant() switch
     {

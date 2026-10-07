@@ -77,6 +77,17 @@ public sealed class MessagingTests
     }
 
     [Fact]
+    public void Kafka_topics_are_trimmed_deduplicated_and_empty_values_are_removed()
+    {
+        var topics = KafkaConsumerWorker.NormalizeTopics(
+            [" s101.xanhnow.trip.events ", "", "s101.xanhnow.trip.events", "s101.xanhnow.membership.events"]);
+
+        Assert.Equal(
+            ["s101.xanhnow.trip.events", "s101.xanhnow.membership.events"],
+            topics);
+    }
+
+    [Fact]
     public void Device_token_protector_encrypts_and_round_trips()
     {
         var path = Path.GetTempFileName();
