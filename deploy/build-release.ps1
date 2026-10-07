@@ -17,6 +17,12 @@ $shaFile = "$archive.sha256"
 Remove-Item -LiteralPath $apiPublish, $migratorPublish, $stage -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Path $apiPublish, $migratorPublish, $stage, $release -Force | Out-Null
 
+dotnet restore $apiProject --runtime linux-x64
+if ($LASTEXITCODE -ne 0) { throw "XanhNowMessaging API restore failed" }
+
+dotnet restore $migratorProject --runtime linux-x64
+if ($LASTEXITCODE -ne 0) { throw "XanhNowMessaging Migrator restore failed" }
+
 dotnet publish $apiProject --configuration Release --runtime linux-x64 --self-contained false --no-restore --output $apiPublish
 if ($LASTEXITCODE -ne 0) { throw "XanhNowMessaging API publish failed" }
 
