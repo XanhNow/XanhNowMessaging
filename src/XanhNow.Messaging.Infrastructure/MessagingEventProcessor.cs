@@ -36,6 +36,21 @@ public sealed class MessagingEventProcessor(
         }
 
         var now = timeProvider.GetUtcNow();
+        if (S101VietQrPaymentNotification.IsPayment(envelope))
+        {
+            S101VietQrPaymentNotification.Validate(envelope);
+            var existing = await dbContext.Messages.AsNoTracking()
+                .Include(x => x.Recipients).SingleOrDefaultAsync(x => x.BusinessKey == envelope.BusinessKey, cancellationToken);
+            if (existing is not null)
+            {
+                if (!IsSamePaymentNotification(existing, envelope))
+                    throw new InvalidOperationException("Conflicting s101 payment notification business key.");
+                dbContext.InboxEvents.Add(CreateInbox(envelope, consumerName, "DuplicateBusinessKey", now));
+                await dbContext.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+                return;
+            }
+        }
         var position = envelope.SequenceNumber ?? envelope.EntityVersion;
         if (position.HasValue && !await TryAdvancePositionAsync(envelope, position.Value, now, cancellationToken))
         {
@@ -50,6 +65,13 @@ public sealed class MessagingEventProcessor(
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
+
+    internal static bool IsSamePaymentNotification(Message existing, MessagingEventEnvelope envelope) =>
+        existing.SourceApp == envelope.SourceApp && existing.EntityId == envelope.EntityId &&
+        existing.TemplateCode == S101VietQrPaymentNotification.TemplateCode &&
+        existing.Recipients.Count == 1 && existing.Recipients[0].UserId == envelope.Recipients[0] &&
+        existing.Title == envelope.Payload.GetProperty("title").GetString() &&
+        existing.Content == envelope.Payload.GetProperty("content").GetString();
 
     private async Task<string> ApplyEventAsync(
         MessagingEventEnvelope envelope,

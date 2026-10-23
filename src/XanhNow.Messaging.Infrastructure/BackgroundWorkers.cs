@@ -47,9 +47,15 @@ public sealed class KafkaConsumerWorker(
                     result = consumer.Consume(stoppingToken);
                     var envelope = JsonSerializer.Deserialize<MessagingEventEnvelope>(result.Message.Value, JsonOptions)
                         ?? throw new InvalidOperationException("Kafka event payload is empty.");
-                    using var scope = scopeFactory.CreateScope();
-                    var processor = scope.ServiceProvider.GetRequiredService<MessagingEventProcessor>();
-                    await processor.ProcessAsync(envelope, stoppingToken);
+                    await S101MessagingRetry.ProcessUntilCommittedAsync(async ct =>
+                    {
+                        // A fresh DbContext is required after rollback or an uncertain commit.
+                        using var scope = scopeFactory.CreateScope();
+                        var processor = scope.ServiceProvider.GetRequiredService<MessagingEventProcessor>();
+                        await processor.ProcessAsync(envelope, ct);
+                    }, Task.Delay,
+                        () => logger.LogWarning("Messaging persistence unavailable; retaining the current Kafka record without committing its offset."),
+                        stoppingToken);
                     consumer.Commit(result);
                 }
                 catch (ConsumeException exception)
@@ -62,8 +68,7 @@ public sealed class KafkaConsumerWorker(
                     logger.LogError(exception, "Kafka event is malformed at {Position}; moving to DLQ.", result?.TopicPartitionOffset);
                     if (result is not null)
                     {
-                        await deadLetterPublisher.PublishAsync(result, "malformed-json", stoppingToken);
-                        consumer.Commit(result);
+                        await DeadLetterOrReplayAsync(consumer, result, topics, "malformed-json", stoppingToken);
                     }
                 }
                 catch (InvalidOperationException exception)
@@ -71,14 +76,17 @@ public sealed class KafkaConsumerWorker(
                     logger.LogError(exception, "Kafka event rejected at {Position}; moving to DLQ.", result?.TopicPartitionOffset);
                     if (result is not null)
                     {
-                        await deadLetterPublisher.PublishAsync(result, "contract-rejected", stoppingToken);
-                        consumer.Commit(result);
+                        await DeadLetterOrReplayAsync(consumer, result, topics, "contract-rejected", stoppingToken);
                     }
                 }
-                catch (DbUpdateException exception)
+                catch (KafkaException)
                 {
-                    logger.LogWarning(exception, "Database conflict while processing Kafka event; event will be redelivered.");
-                    await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken);
+                    logger.LogWarning("Kafka acknowledgement or DLQ publish failed; replaying from the uncommitted position.");
+                    if (result is not null)
+                    {
+                        Replay(consumer, result, topics);
+                    }
+                    await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
                 }
             }
         }
@@ -89,6 +97,28 @@ public sealed class KafkaConsumerWorker(
         {
             consumer.Close();
         }
+    }
+
+    private async Task DeadLetterOrReplayAsync(IConsumer<string, string> consumer,
+        ConsumeResult<string, string> result, string[] topics, string reason, CancellationToken ct)
+    {
+        try
+        {
+            await deadLetterPublisher.PublishAsync(result, reason, ct);
+            consumer.Commit(result);
+        }
+        catch (Exception error) when (error is KafkaException or InvalidOperationException)
+        {
+            logger.LogWarning("Messaging DLQ unavailable; retaining the source record without acknowledgement.");
+            Replay(consumer, result, topics);
+            await Task.Delay(TimeSpan.FromSeconds(2), ct);
+        }
+    }
+
+    private static void Replay(IConsumer<string, string> consumer, ConsumeResult<string, string> result, string[] topics)
+    {
+        try { consumer.Seek(result.TopicPartitionOffset); }
+        catch (KafkaException) { consumer.Unsubscribe(); consumer.Subscribe(topics); }
     }
 
     private static ConsumerConfig BuildConfig(KafkaOptions value)
@@ -488,6 +518,7 @@ public sealed class OutboxDeliveryWorker(
             return;
         }
         var now = timeProvider.GetUtcNow();
+        var payment = false;
         try
         {
             var message = await db.Messages.AsNoTracking()
@@ -495,6 +526,8 @@ public sealed class OutboxDeliveryWorker(
                 .Select(x => new
                 {
                     x.Id,
+                    x.TemplateCode,
+                    x.SourceApp,
                     x.Category,
                     x.Title,
                     x.Content,
@@ -503,6 +536,15 @@ public sealed class OutboxDeliveryWorker(
                     x.CreatedAt
                 })
                 .SingleAsync(cancellationToken);
+            payment = message.TemplateCode == S101VietQrPaymentNotification.TemplateCode &&
+                message.SourceApp == S101VietQrPaymentNotification.SourceApp;
+            if (payment && await S101MessagingRetry.AcknowledgedRecipients(
+                    db.MessageRecipients.AsNoTracking(), row.MessageId, row.UserId).AnyAsync(cancellationToken))
+            {
+                S101MessagingRetry.DeliveryDispatched(row, payment: true, acknowledged: true, timeProvider.GetUtcNow());
+                await db.SaveChangesAsync(cancellationToken);
+                return;
+            }
             var data = new RealtimeMessageNotification(
                 message.Id,
                 message.Category,
@@ -512,10 +554,7 @@ public sealed class OutboxDeliveryWorker(
                 ParseJson(message.ActionDataJson),
                 message.CreatedAt);
             await realtimeNotifier.SendAsync(row.UserId, data, cancellationToken);
-            row.Status = OutboxStatus.Completed;
-            row.LeaseToken = null;
-            row.LeaseExpiresAt = null;
-            row.UpdatedAt = now;
+            S101MessagingRetry.DeliveryDispatched(row, payment, acknowledged: false, timeProvider.GetUtcNow());
             db.DeliveryAttempts.Add(new DeliveryAttempt
             {
                 OutboxEventId = row.Id,
@@ -525,20 +564,15 @@ public sealed class OutboxDeliveryWorker(
                 AttemptedAt = now
             });
             await db.MessageRecipients
-                .Where(x => x.MessageId == row.MessageId && x.UserId == row.UserId)
+                .Where(x => x.MessageId == row.MessageId && x.UserId == row.UserId && x.DeliveredAt == null)
                 .ExecuteUpdateAsync(setters => setters
                     .SetProperty(x => x.DeliveryStatus, DeliveryStatus.Dispatched)
                     .SetProperty(x => x.DispatchedAt, now), cancellationToken);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            row.AttemptCount++;
-            row.LastError = Sanitize(exception.Message);
-            row.Status = row.AttemptCount >= options.Value.MaxAttempts ? OutboxStatus.Failed : OutboxStatus.Pending;
-            row.NextAttemptAt = now + TimeSpan.FromSeconds(Math.Min(300, Math.Pow(2, row.AttemptCount)));
-            row.LeaseToken = null;
-            row.LeaseExpiresAt = null;
-            row.UpdatedAt = now;
+            row.LastError = payment ? "s101.vietqr.notification_delivery_retry" : Sanitize(exception.Message);
+            S101MessagingRetry.DeliveryFailed(row, payment, S101MessagingRetry.IsTransient(exception), now, options.Value.MaxAttempts);
             db.DeliveryAttempts.Add(new DeliveryAttempt
             {
                 OutboxEventId = row.Id,
@@ -547,7 +581,10 @@ public sealed class OutboxDeliveryWorker(
                 Error = row.LastError,
                 AttemptedAt = now
             });
-            logger.LogWarning(exception, "Outbox event {OutboxId} failed on attempt {Attempt}.", row.Id, row.AttemptCount);
+            if (payment)
+                logger.LogWarning("s101 payment notification {OutboxId} delivery retry {Attempt}; the existing message is retained.", row.Id, row.AttemptCount);
+            else
+                logger.LogWarning(exception, "Outbox event {OutboxId} failed on attempt {Attempt}.", row.Id, row.AttemptCount);
         }
         await db.SaveChangesAsync(cancellationToken);
     }

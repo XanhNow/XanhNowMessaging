@@ -14,7 +14,7 @@ public sealed class KafkaOptions
     public string[] BootstrapServers { get; set; } = [];
     public string ClientId { get; set; } = "s101-xanhnow-messaging";
     public string ConsumerGroup { get; set; } = "s101.xanhnow.messaging";
-    public string[] Topics { get; set; } = ["s101.xanhnow.trip.events", "s101.xanhnow.membership.events"];
+    public string[] Topics { get; set; } = ["s101.xanhnow.trip.events", "s101.xanhnow.membership.events", XanhNow.Messaging.Contracts.S101VietQrPaymentNotification.Topic];
     public string DeadLetterTopic { get; set; } = "s101.xanhnow.messaging.dlq";
     public string SecurityProtocol { get; set; } = "SASL_SSL";
     public string SaslMechanism { get; set; } = "SCRAM-SHA-512";

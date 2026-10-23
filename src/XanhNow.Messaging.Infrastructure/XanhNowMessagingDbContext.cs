@@ -109,7 +109,7 @@ public sealed class XanhNowMessagingDbContext(DbContextOptions<XanhNowMessagingD
             entity.Property(x => x.AttemptCount).HasColumnName("attempt_count");
             entity.Property(x => x.NextAttemptAt).HasColumnName("next_attempt_at");
             entity.Property(x => x.LeaseExpiresAt).HasColumnName("lease_expires_at");
-            entity.Property(x => x.LeaseToken).HasColumnName("lease_token");
+            entity.Property(x => x.LeaseToken).HasColumnName("lease_token").IsConcurrencyToken();
             entity.Property(x => x.LastError).HasColumnName("last_error").HasMaxLength(1000);
             entity.Property(x => x.CreatedAt).HasColumnName("created_at");
             entity.Property(x => x.UpdatedAt).HasColumnName("updated_at");
