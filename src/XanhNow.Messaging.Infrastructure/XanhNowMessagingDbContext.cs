@@ -113,6 +113,11 @@ public sealed class XanhNowMessagingDbContext(DbContextOptions<XanhNowMessagingD
             entity.Property(x => x.LastError).HasColumnName("last_error").HasMaxLength(1000);
             entity.Property(x => x.CreatedAt).HasColumnName("created_at");
             entity.Property(x => x.UpdatedAt).HasColumnName("updated_at");
+            // This FK already exists in InitialMessaging SQL. Map it so SaveChanges
+            // inserts the parent message before its delivery outbox row.
+            entity.HasOne<Message>().WithMany().HasForeignKey(x => x.MessageId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("message_outbox_events_message_id_fkey");
             entity.HasIndex(x => new { x.MessageId, x.UserId, x.Channel }).IsUnique();
             entity.HasIndex(x => new { x.Status, x.NextAttemptAt });
         });
